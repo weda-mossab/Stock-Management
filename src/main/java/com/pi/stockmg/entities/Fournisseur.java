@@ -20,7 +20,7 @@ import lombok.ToString;
 public class Fournisseur {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
+    private Long id;
     
     private String nom;
     private String adresse; 
