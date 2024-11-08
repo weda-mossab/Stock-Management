@@ -6,7 +6,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.pi.stockmg.entities.Produit;
 
-public interface ProduitRepository extends JpaRepository<Produit, Integer>{
-    List<Produit> findByNomContainingIgnoreCase(String nom);
 
+public interface ProduitRepository extends JpaRepository<Produit, Long> {
+    
+    List<Produit> findByNomStartingWith(String name);
 }
+
+
