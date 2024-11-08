@@ -1,80 +1,89 @@
 package com.pi.stockmg.controllers;
 
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-
 import java.util.List;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
 
+import com.pi.stockmg.entities.Fournisseur;
+import com.pi.stockmg.repositories.FournisseurRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.pi.stockmg.entities.Produit;
 import com.pi.stockmg.repositories.ProduitRepository;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.*;
 
 @Controller
 @RequestMapping("/produits")
-
 public class ProduitController {
-    private final ProduitRepository produitRepository;
 
     @Autowired
-    public ProduitController(ProduitRepository produitRepository) {
+    private final ProduitRepository produitRepository;
+    private final FournisseurRepository fournisseurRepository;
+
+    public ProduitController(ProduitRepository produitRepository, FournisseurRepository fournisseurRepository) {
         this.produitRepository = produitRepository;
+        this.fournisseurRepository = fournisseurRepository;
     }
 
+    // Get all products
     @GetMapping
-    public String GetAllProduits(Model model) {
+    public String getAllProducts(Model model) {
         List<Produit> produits = produitRepository.findAll();
-        model.addAttribute("produits", produits);
-        return "Produits.html";
+        List<Fournisseur> fournisseurs = fournisseurRepository.findAll();
+        model.addAttribute("produits", produits); // Using "produits" consistently
+        model.addAttribute("fournisseurs", fournisseurs); // Add suppliers to the model
+        return "Produits"; // Return the view name for displaying the list of products
     }
 
-    // Créer un produit
-    @PostMapping String createProduit (@ModelAttribute Produit produit){
-        produitRepository.save(produit);
-        return "redirect:/Produits";
-    }
-
-    // Afficher un produit par ID
+    // Get product by ID
     @GetMapping("/{id}")
-    public String getProduitById(@PathVariable Integer id, Model model) {
-        Produit produit = produitRepository.findById(id).orElse(null);
-        model.addAttribute("produit", produit);
-        return "Produits.html"; 
-    }
-    
-    // Modifier un produit existant
-    @PutMapping("/{id}")
-    public String updateProduit(@PathVariable Integer id, @ModelAttribute Produit produitDetails) {
-        Produit produit = produitRepository.findById(id).orElse(null);
-        if (produit != null) {
-            produit.setNom(produitDetails.getNom());
-            produit.setDescription(produitDetails.getDescription());
-            produit.setPrix(produitDetails.getPrix());
-            produit.setQuantite(produitDetails.getQuantite());
-            produitRepository.save(produit);
-        }   
-        return "redirect:/Produits";
+    public String getProductById(@PathVariable Long id, Model model) {
+        Produit produit = produitRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Product not found")); // Could be a custom exception
+        model.addAttribute("produit", produit); // Using "produit" for consistency
+        return "Produits"; // Return the view for displaying the single product
     }
 
-    // Supprimer un produit
-    @DeleteMapping("/{id}")
-    public String deleteProduit(@PathVariable Integer id) {
+    // Create product
+    @PostMapping
+    public String createProduct(@ModelAttribute Produit produit) {
+        // Add validation if necessary
+        produitRepository.save(produit);
+        return "redirect:/produits"; // Redirect after successful creation
+    }
+
+    // Update product
+    @PutMapping("{id}")
+    public String updateProduct(@PathVariable Long id, @ModelAttribute Produit produit) {
+        Produit existingProduit = produitRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Product not found"));
+
+        // Set only the fields that can be updated
+        existingProduit.setNom(produit.getNom());
+        existingProduit.setDescription(produit.getDescription());
+        existingProduit.setPrix(produit.getPrix());
+        existingProduit.setQuantite(produit.getQuantite());
+
+        produitRepository.save(existingProduit); // Save the updated product
+        return "redirect:/produits"; // Redirect after successful update
+    }
+
+    // Delete product
+    @GetMapping("/deleteProduct")
+    public String deleteProduct(@RequestParam("id") Long id) {
         produitRepository.deleteById(id);
-        return "redirect:/Produits"; // Rediriger vers la liste des produits
+        return "redirect:/produits"; // Redirect after deleting the product
     }
 
-    @GetMapping("/search")
-    public String searchProduits(@RequestParam("query") String query, Model model) {
-        List<Produit> produits = produitRepository.findByNomContainingIgnoreCase(query); // Méthode de recherche dans le repository
+    // Search products
+    @GetMapping("/searchProducts")
+    public String searchProducts(@RequestParam(required = false) String name, Model model) {
+        List<Produit> produits;
+        if (name == null || name.isEmpty()) {
+            produits = produitRepository.findAll(); // Fetch all if no name provided
+        } else {
+            produits = produitRepository.findByNomStartingWith(name); // Search by name prefix
+        }
         model.addAttribute("produits", produits);
-        model.addAttribute("query", query); // Pour préremplir le champ de recherche si besoin
-        return "Produits"; // Renvoyer à la vue qui affiche les produits
+        return "produits"; // Return the view for displaying search results
     }
 }
