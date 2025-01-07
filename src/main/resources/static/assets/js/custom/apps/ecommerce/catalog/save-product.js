@@ -293,13 +293,6 @@ var KTAppEcommerceSaveProduct = function () {
                     'sku': {
                         validators: {
                             notEmpty: {
-                                message: 'SKU is required'
-                            }
-                        }
-                    },
-                    'sku': {
-                        validators: {
-                            notEmpty: {
                                 message: 'Product barcode is required'
                             }
                         }
