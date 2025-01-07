@@ -8,8 +8,15 @@ import com.pi.stockmg.entities.Produit;
 
 
 public interface ProduitRepository extends JpaRepository<Produit, Long> {
-    
-    List<Produit> findByNomStartingWith(String name);
-}
+
+    List<Produit> findByNomContaining(String searchTerm);
+
+    default List<Produit> searchProducts(String searchTerm) {
+        if (searchTerm == null || searchTerm.isEmpty()) {
+            return findAll();
+        }
+        return findByNomContaining(searchTerm.toLowerCase());
+    }}
+
 
 
