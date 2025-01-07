@@ -28,7 +28,7 @@ public class Produit {
     private Double prix;
     private Integer quantite;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn(name = "fournisseur_id")
     private Fournisseur fournisseur;
 }
