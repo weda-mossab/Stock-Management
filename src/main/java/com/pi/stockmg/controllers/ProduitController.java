@@ -1,80 +1,108 @@
 package com.pi.stockmg.controllers;
 
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-
 import java.util.List;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
 
+import com.pi.stockmg.entities.Fournisseur;
+import com.pi.stockmg.repositories.FournisseurRepository;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.pi.stockmg.entities.Produit;
 import com.pi.stockmg.repositories.ProduitRepository;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Controller
 @RequestMapping("/produits")
-
 public class ProduitController {
-    private final ProduitRepository produitRepository;
 
     @Autowired
-    public ProduitController(ProduitRepository produitRepository) {
+    private final ProduitRepository produitRepository;
+    private final FournisseurRepository fournisseurRepository;
+    private static final Logger logger = LoggerFactory.getLogger(ProduitController.class);
+
+    public ProduitController(ProduitRepository produitRepository, FournisseurRepository fournisseurRepository) {
         this.produitRepository = produitRepository;
+        this.fournisseurRepository = fournisseurRepository;
     }
 
+    // Get all products
     @GetMapping
-    public String GetAllProduits(Model model) {
-        List<Produit> produits = produitRepository.findAll();
-        model.addAttribute("produits", produits);
-        return "Produits.html";
+    public String getAllProducts(Model model, HttpServletRequest request, @RequestParam(required = false) String searchTerm) {
+        String authenticatedUser = (String) request.getSession().getAttribute("authenticatedUser");
+
+        if (authenticatedUser == null) {
+            return "redirect:/signin";
+        }
+
+        List<Produit> produits = produitRepository.searchProducts(searchTerm);
+        List<Fournisseur> fournisseurs = fournisseurRepository.findAll();
+        model.addAttribute("produits", produits); // Using "produits" consistently
+        model.addAttribute("fournisseurs", fournisseurs); // Add suppliers to the model
+        model.addAttribute("searchTerm", searchTerm);
+        return "Produits"; // Return the view name for displaying the list of products
     }
 
-    // Créer un produit
-    @PostMapping String createProduit (@ModelAttribute Produit produit){
-        produitRepository.save(produit);
-        return "redirect:/Produits";
+    // Helper method to avoid code duplication
+    private Produit getProductByIdOrThrow(Long id) {
+        return produitRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Produit introuvable"));
     }
 
-    // Afficher un produit par ID
+    // Get product by ID
     @GetMapping("/{id}")
-    public String getProduitById(@PathVariable Integer id, Model model) {
-        Produit produit = produitRepository.findById(id).orElse(null);
-        model.addAttribute("produit", produit);
-        return "Produits.html"; 
-    }
-    
-    // Modifier un produit existant
-    @PutMapping("/{id}")
-    public String updateProduit(@PathVariable Integer id, @ModelAttribute Produit produitDetails) {
-        Produit produit = produitRepository.findById(id).orElse(null);
-        if (produit != null) {
-            produit.setNom(produitDetails.getNom());
-            produit.setDescription(produitDetails.getDescription());
-            produit.setPrix(produitDetails.getPrix());
-            produit.setQuantite(produitDetails.getQuantite());
-            produitRepository.save(produit);
-        }   
-        return "redirect:/Produits";
+    @ResponseBody
+    public Produit getProductById(@PathVariable Long id) {
+        return getProductByIdOrThrow(id);  // Call the helper method here
     }
 
-    // Supprimer un produit
-    @DeleteMapping("/{id}")
-    public String deleteProduit(@PathVariable Integer id) {
-        produitRepository.deleteById(id);
-        return "redirect:/Produits"; // Rediriger vers la liste des produits
+    // Create product
+    @PostMapping
+    public String createProduct(@ModelAttribute Produit produit) {
+        // Add validation if necessary
+        produitRepository.save(produit);
+        return "redirect:/produits"; // Redirect after successful creation
     }
 
-    @GetMapping("/search")
-    public String searchProduits(@RequestParam("query") String query, Model model) {
-        List<Produit> produits = produitRepository.findByNomContainingIgnoreCase(query); // Méthode de recherche dans le repository
+    // Update product /updateProduct/{id}
+    @PostMapping("/updateProduct")
+    public String updateProduct(@RequestParam Long id, @ModelAttribute Produit produit) {
+        logger.info("Reçu une requête pour mettre à jour le produit avec l'id : " + id);
+
+        // Vérifier si le produit existe
+        Produit existingProduct = getProductByIdOrThrow(id);
+
+        // Mettre à jour les champs du produit existant
+        existingProduct.setNom(produit.getNom());
+        existingProduct.setDescription(produit.getDescription());
+        existingProduct.setQuantite(produit.getQuantite());
+        existingProduct.setPrix(produit.getPrix());
+        if (produit.getFournisseur() != null && produit.getFournisseur().getId() != null) {
+            existingProduct.setFournisseur(produit.getFournisseur());
+        }
+        // Sauvegarder le produit mis à jour
+        produitRepository.save(existingProduct);
+        return "redirect:/produits";
+    }
+
+    // Delete product
+    @PostMapping("/deleteProducts")
+    public String deleteProducts(@RequestParam("ids") String ids) {
+        // Split the comma-separated list of IDs and delete each product
+        String[] idArray = ids.split(",");
+        for (String id : idArray) {
+            produitRepository.deleteById(Long.parseLong(id.trim()));
+        }
+        return "redirect:/produits"; // Redirect after deleting the products
+    }
+
+    @GetMapping("/searchProduct")
+    public String searchProducts(@RequestParam String searchTerm, Model model) {
+        List<Produit> produits = produitRepository.searchProducts(searchTerm);
         model.addAttribute("produits", produits);
-        model.addAttribute("query", query); // Pour préremplir le champ de recherche si besoin
-        return "Produits"; // Renvoyer à la vue qui affiche les produits
+        model.addAttribute("searchTerm", searchTerm);
+        return "Produits";
     }
 }
